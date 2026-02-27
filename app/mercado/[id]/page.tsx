@@ -4,6 +4,9 @@ import { useParams, useRouter } from 'next/navigation';
 import Header from '@/components/Header';
 import { createClient } from '@/utils/supabase/client';
 import type { Mercado } from '@/utils/types';
+import { useTonConnectUI, useTonAddress } from '@tonconnect/ui-react';
+import { getJettonWalletAddress, createUsdtTransferPayload, DESTINATION_ADDRESS } from '@/utils/ton';
+import { toNano } from '@ton/core';
 
 type Voto = 'si' | 'no';
 type Paso = 'detalle' | 'compra' | 'exito';
@@ -15,6 +18,8 @@ export default function MercadoDetallePage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
   const supabase = createClient();
+  const [tonConnectUI] = useTonConnectUI();
+  const userAddress = useTonAddress();
 
   const [mercado, setMercado] = useState<Mercado | null>(null);
   const [loading, setLoading] = useState(true);
@@ -51,36 +56,78 @@ export default function MercadoDetallePage() {
     setComprando(true);
     setError(null);
 
-    const precioUnitario = voto === 'si' ? mercado.precio_si : mercado.precio_no;
+    try {
+      if (!userAddress) {
+        throw new Error('Por favor, conecta tu wallet primero.');
+      }
 
-    const { error: err } = await supabase.from('historial_operaciones').insert([{
-      mercado_id: mercado.id,
-      tipo_voto: voto,
-      precio_pagado: monto,
-    }]);
+      // 1. Obtener la dirección de la wallet de USDT del usuario
+      const userJettonWallet = await getJettonWalletAddress(userAddress);
+      
+      // 2. Crear el payload de transferencia de USDT
+      const payload = createUsdtTransferPayload(
+        DESTINATION_ADDRESS.toString(),
+        monto,
+        userAddress
+      );
 
-    if (err) {
-      setError('Error al procesar la compra. Intenta de nuevo.');
+      // 3. Preparar la transacción para TON Connect
+      // Al ser una billetera W5, la wallet (como Tonkeeper) detectará que es USDT 
+      // y permitirá al usuario pagar el gas con su saldo de USDT.
+      const transaction = {
+        validUntil: Math.floor(Date.now() / 1000) + 360, // 6 minutos
+        messages: [
+          {
+            address: userJettonWallet,
+            amount: toNano('0.06').toString(), // Fee estimado para procesar el jetton
+            payload: payload.toBoc().toString('base64'),
+          },
+        ],
+      };
+
+      // 4. Enviar transacción al usuario para firmar
+      const result = await tonConnectUI.sendTransaction(transaction);
+      
+      if (!result) {
+        throw new Error('La transacción no pudo ser completada.');
+      }
+
+      // 5. Si el pago fue exitoso (el usuario firmó), registramos en Supabase
+      const { error: err } = await supabase.from('historial_operaciones').insert([{
+        mercado_id: mercado.id,
+        tipo_voto: voto,
+        precio_pagado: monto,
+        // Opcional: podrías guardar el hash de la transacción si 'result' lo proporciona (boc)
+      }]);
+
+      if (err) {
+        console.error('Error recording operation:', err);
+        // El pago ya se hizo en la blockchain, así que mostramos éxito pero avisamos?
+        // O mejor simplemente procedemos ya que el dinero se envió.
+      }
+
+      // 6. Actualizar precios del mercado para reflejar la compra
+      const inc = Math.min(0.05, monto * 0.005);
+      let pSi = mercado.precio_si;
+      let pNo = mercado.precio_no;
+      if (voto === 'si') {
+        pSi = parseFloat(Math.min(0.9, pSi + inc).toFixed(2));
+        pNo = parseFloat((1 - pSi).toFixed(2));
+      } else {
+        pNo = parseFloat(Math.min(0.9, pNo + inc).toFixed(2));
+        pSi = parseFloat((1 - pNo).toFixed(2));
+      }
+      
+      await supabase.from('mercados').update({ precio_si: pSi, precio_no: pNo }).eq('id', mercado.id);
+      setMercado({ ...mercado, precio_si: pSi, precio_no: pNo });
+
+      setPaso('exito');
+    } catch (e: any) {
+      console.error('Payment error:', e);
+      setError(e.message || 'Error al procesar el pago. Intenta de nuevo.');
+    } finally {
       setComprando(false);
-      return;
     }
-
-    // Update price (max 0.9)
-    const inc = Math.min(0.05, monto * 0.005);
-    let pSi = mercado.precio_si;
-    let pNo = mercado.precio_no;
-    if (voto === 'si') {
-      pSi = parseFloat(Math.min(0.9, pSi + inc).toFixed(2));
-      pNo = parseFloat((1 - pSi).toFixed(2));
-    } else {
-      pNo = parseFloat(Math.min(0.9, pNo + inc).toFixed(2));
-      pSi = parseFloat((1 - pNo).toFixed(2));
-    }
-    await supabase.from('mercados').update({ precio_si: pSi, precio_no: pNo }).eq('id', mercado.id);
-    setMercado({ ...mercado, precio_si: pSi, precio_no: pNo });
-
-    setComprando(false);
-    setPaso('exito');
   };
 
   // ── LOADING ──
