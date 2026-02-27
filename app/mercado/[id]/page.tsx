@@ -79,7 +79,7 @@ export default function MercadoDetallePage() {
         messages: [
           {
             address: userJettonWallet,
-            amount: toNano('0.06').toString(), // Fee estimado para procesar el jetton
+            amount: '35000000', // 0.035 TON para cubrir el max de la transaccion del jetton
             payload: payload.toBoc().toString('base64'),
           },
         ],

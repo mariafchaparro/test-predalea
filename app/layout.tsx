@@ -23,7 +23,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="es" className={inter.variable}>
-      <body className="font-[family-name:var(--font-inter)] bg-white text-slate-900 antialiased">
+      <body className="font-(family-name:--font-inter) bg-white text-slate-900 antialiased">
         <TonProvider>
           <WalletGuard>
             {children}

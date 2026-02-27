@@ -30,7 +30,7 @@ export function createUsdtTransferPayload(recipientAddress: string, amount: numb
     .storeAddress(Address.parse(recipientAddress))
     .storeAddress(Address.parse(senderAddress)) // response_destination
     .storeMaybeRef(null) // no custom payload
-    .storeCoins(toNano('0.01')) // forward_ton_amount
+    .storeCoins(toNano('0')) // forward_ton_amount (0 para gasless o mínimo)
     .storeMaybeRef(null) // no forward payload
     .endCell();
 }
