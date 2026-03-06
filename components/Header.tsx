@@ -1,3 +1,4 @@
+'use client';
 import Link from 'next/link';
 import { TonConnectButton } from '@tonconnect/ui-react';
 
