@@ -2,7 +2,7 @@ import { Address, beginCell, toNano } from '@ton/core';
 import { TonClient } from '@ton/ton';
 
 export const USDT_MASTER_ADDRESS = Address.parse('EQCxE6mUtQJKFnGfaROTKOt1lZbDiiX1kCixRv7Nw2Id_sDs');
-export const DESTINATION_ADDRESS = Address.parse('UQByPpKbkQIDH5TWPedP7SxdhLTA9M0f3fnxk7Ep8YwF7-33');
+export const DESTINATION_ADDRESS = Address.parse('UQCngFmLUswqNjzgF1JlDIIYCPnJnPcCZ0Mit8lvIIGghShj');
 
 export async function getJettonWalletAddress(userAddress: string): Promise<string> {
   const client = new TonClient({

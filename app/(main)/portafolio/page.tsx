@@ -13,6 +13,9 @@ interface PosicionAgrupada {
   acciones: number;
   retorno: number;
   retornoPct: number;
+  pagado: boolean;
+  montoGanado: number;
+  estado: 'activo' | 'ganado' | 'perdido';
 }
 
 export default function PortafolioPage() {
@@ -61,30 +64,42 @@ export default function PortafolioPage() {
         const key = `${op.mercado_id}-${op.tipo_voto}`;
         const precioActual = op.tipo_voto === 'si' ? mercado.precio_si : mercado.precio_no;
 
-        if (grupos.has(key)) {
-          const g = grupos.get(key)!;
-          g.totalPagado += op.precio_pagado;
-          g.acciones = precioActual > 0 ? parseFloat((g.totalPagado / precioActual).toFixed(1)) : 0;
-          g.retorno = parseFloat((g.acciones * (1 - precioActual)).toFixed(2));
-          g.retornoPct = g.totalPagado > 0
-            ? parseFloat(((g.retorno / g.totalPagado) * 100).toFixed(1))
-            : 0;
-        } else {
-          const totalPagado = op.precio_pagado;
-          const acciones = precioActual > 0 ? parseFloat((totalPagado / precioActual).toFixed(1)) : 0;
-          const retorno = parseFloat((acciones * (1 - precioActual)).toFixed(2));
-          const retornoPct = totalPagado > 0 ? parseFloat(((retorno / totalPagado) * 100).toFixed(1)) : 0;
+          const pagado = op.pagado ?? false;
+          const montoGanado = op.monto_ganado ?? 0;
+          let estado: 'activo' | 'ganado' | 'perdido' = 'activo';
+          if (mercado.finalizado) {
+            estado = mercado.resultado === op.tipo_voto ? 'ganado' : 'perdido';
+          }
 
-          grupos.set(key, {
-            mercado,
-            tipo_voto: op.tipo_voto,
-            totalPagado,
-            precioActual,
-            acciones,
-            retorno,
-            retornoPct,
-          });
-        }
+          if (grupos.has(key)) {
+            const g = grupos.get(key)!;
+            g.totalPagado += op.precio_pagado;
+            g.montoGanado += montoGanado;
+            g.pagado = pagado || g.pagado;
+            g.acciones = precioActual > 0 ? parseFloat((g.totalPagado / precioActual).toFixed(1)) : 0;
+            g.retorno = parseFloat((g.acciones * (1 - precioActual)).toFixed(2));
+            g.retornoPct = g.totalPagado > 0
+              ? parseFloat(((g.retorno / g.totalPagado) * 100).toFixed(1))
+              : 0;
+          } else {
+            const totalPagado = op.precio_pagado;
+            const acciones = precioActual > 0 ? parseFloat((totalPagado / precioActual).toFixed(1)) : 0;
+            const retorno = parseFloat((acciones * (1 - precioActual)).toFixed(2));
+            const retornoPct = totalPagado > 0 ? parseFloat(((retorno / totalPagado) * 100).toFixed(1)) : 0;
+
+            grupos.set(key, {
+              mercado,
+              tipo_voto: op.tipo_voto,
+              totalPagado,
+              precioActual,
+              acciones,
+              retorno,
+              retornoPct,
+              pagado,
+              montoGanado,
+              estado,
+            });
+          }
       }
 
       setPosiciones(Array.from(grupos.values()));
@@ -97,6 +112,7 @@ export default function PortafolioPage() {
 
   const inversionTotal = posiciones.reduce((s, p) => s + p.totalPagado, 0);
   const gananciaTotal = posiciones.reduce((s, p) => s + p.retorno, 0);
+  const totalCobrado = posiciones.filter(p => p.pagado).reduce((s, p) => s + p.montoGanado, 0);
   const valorPortafolio = inversionTotal + gananciaTotal;
   const gananciaHoy = gananciaTotal;
   const gananciaPct = inversionTotal > 0 ? ((gananciaTotal / inversionTotal) * 100).toFixed(1) : '0.0';
@@ -194,7 +210,7 @@ export default function PortafolioPage() {
                     {/* Left: title + badge + shares */}
                     <div className="flex flex-col gap-2 pr-4 flex-1">
                       <p className="text-sm font-semibold text-slate-900 leading-snug line-clamp-2">{pos.mercado.titulo}</p>
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 flex-wrap">
                         {/* Vote badge */}
                         <span className={`inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-md
                           ${pos.tipo_voto === 'si'
@@ -202,17 +218,24 @@ export default function PortafolioPage() {
                             : 'bg-rose-50/60 text-red-500'
                           }`}>
                           {pos.tipo_voto === 'si' ? 'Sí' : 'No'}
-                          {pos.tipo_voto === 'si' ? (
-                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                              <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" /><polyline points="22 4 12 14.01 9 11.01" />
-                            </svg>
-                          ) : (
-                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                              <circle cx="12" cy="12" r="10" /><line x1="15" y1="9" x2="9" y2="15" /><line x1="9" y1="9" x2="15" y2="15" />
-                            </svg>
-                          )}
                         </span>
                         <span className="text-[11px] text-slate-400">{pos.acciones} acciones</span>
+                        {/* Estado badge */}
+                        {pos.estado === 'ganado' && pos.pagado && (
+                          <span className="text-[11px] font-bold px-2 py-0.5 rounded-md bg-green-100 text-green-700">
+                            ✓ Pagado +${pos.montoGanado.toFixed(2)}
+                          </span>
+                        )}
+                        {pos.estado === 'ganado' && !pos.pagado && (
+                          <span className="text-[11px] font-bold px-2 py-0.5 rounded-md bg-yellow-50 text-yellow-700">
+                            🏆 Ganaste · Pago pendiente
+                          </span>
+                        )}
+                        {pos.estado === 'perdido' && (
+                          <span className="text-[11px] font-bold px-2 py-0.5 rounded-md bg-slate-100 text-slate-500">
+                            Mercado cerrado
+                          </span>
+                        )}
                       </div>
                     </div>
 

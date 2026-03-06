@@ -97,7 +97,7 @@ export default function MercadoDetallePage() {
         mercado_id: mercado.id,
         tipo_voto: voto,
         precio_pagado: monto,
-        // Opcional: podrías guardar el hash de la transacción si 'result' lo proporciona (boc)
+        wallet_address: userAddress, // Guardamos la wallet del usuario para el payout
       }]);
 
       if (err) {
