@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { TonConnectButton } from '@tonconnect/ui-react';
 
 interface HeaderProps {
   showBack?: boolean;
@@ -53,7 +54,7 @@ export default function Header({ showBack = false, backHref = '/', showShare = f
               <path d="M13.73 21a2 2 0 0 1-3.46 0" />
             </svg>
           </button>
-          <div className="w-9 h-9 rounded-full shrink-0" style={{ background: 'linear-gradient(180deg, #5570f4, #fe38b5)' }} />
+          <TonConnectButton />
         </div>
       )}
     </header>
